@@ -9,24 +9,35 @@ let pendingFormPhoto = null;
 window.addEventListener('DOMContentLoaded', init);
 
 async function init() {
-  await loadLocalData();
+  loadLocalData();
   await loadSheet();
 }
 
-// ── local storage ──────────────────────────────────────────────
-async function loadLocalData() {
+// ── localStorage (works on GitHub Pages) ──────────────────────
+function loadLocalData() {
   try {
-    const r = await window.storage.get('plant_local_data');
-    localData = r ? JSON.parse(r.value) : {};
+    const raw = localStorage.getItem('plant_local_data');
+    localData = raw ? JSON.parse(raw) : {};
   } catch(e) { localData = {}; }
 }
 
-async function saveLocalData() {
-  try { await window.storage.set('plant_local_data', JSON.stringify(localData)); } catch(e) {}
+function saveLocalData() {
+  try { localStorage.setItem('plant_local_data', JSON.stringify(localData)); } catch(e) {
+    showToast('Storage full — try using Drive links for photos instead of uploads');
+  }
 }
 
 function getLocal(plantId) {
   return localData[plantId] || { lastWatered: null, photos: [] };
+}
+
+function getLocalPlants() {
+  try { const r = localData['__plants__']; return r ? JSON.parse(r) : []; } catch(e) { return []; }
+}
+
+function saveLocalPlants(list) {
+  localData['__plants__'] = JSON.stringify(list);
+  saveLocalData();
 }
 
 // ── Google Sheet loader ────────────────────────────────────────
@@ -42,23 +53,16 @@ async function loadSheet() {
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     plants = parseCSV(await res.text());
-    const local = getLocalPlants();
-    local.forEach(lp => { if (!plants.find(p => p.id === lp.id)) plants.push(lp); });
+    // Merge any locally-added plants (not from sheet)
+    getLocalPlants().forEach(lp => {
+      if (!plants.find(p => p.id === lp.id)) plants.push(lp);
+    });
     render();
   } catch(err) {
     plants = getLocalPlants();
     render();
     showToast('Could not load sheet — showing local plants');
   }
-}
-
-function getLocalPlants() {
-  try { const r = localData['__plants__']; return r ? JSON.parse(r) : []; } catch(e) { return []; }
-}
-
-async function saveLocalPlants(list) {
-  localData['__plants__'] = JSON.stringify(list);
-  await saveLocalData();
 }
 
 // ── CSV parser ─────────────────────────────────────────────────
@@ -118,7 +122,6 @@ function statusBadgeHtml(status) {
 }
 
 // ── photo helpers ──────────────────────────────────────────────
-// Convert a Google Drive share link to a displayable URL
 function driveUrl(raw) {
   if (!raw) return '';
   raw = raw.trim();
@@ -131,7 +134,6 @@ function driveUrl(raw) {
   return raw;
 }
 
-// A photo entry has either .dataUrl (local upload) or .driveUrl (Drive link)
 function photoSrc(ph) {
   return ph.driveUrl ? driveUrl(ph.driveUrl) : (ph.dataUrl || '');
 }
@@ -142,17 +144,19 @@ function render() {
   updateHomeSub();
   const grid  = document.getElementById('plant-grid');
   const empty = document.getElementById('empty-state');
-  let filtered = currentFilter === 'all' ? plants : plants.filter(p => getStatus(p).key === currentFilter);
+  const filtered = currentFilter === 'all'
+    ? plants
+    : plants.filter(p => getStatus(p).key === currentFilter);
 
   if (!filtered.length) { grid.innerHTML = ''; empty.classList.remove('hidden'); return; }
   empty.classList.add('hidden');
 
   grid.innerHTML = filtered.map((p, idx) => {
-    const local = getLocal(p.id);
+    const local  = getLocal(p.id);
     const status = getStatus(p);
     const photos = local.photos || [];
     const latest = photos.length ? photos[photos.length - 1] : null;
-    const src = latest ? photoSrc(latest) : null;
+    const src    = latest ? photoSrc(latest) : null;
     const imgHtml = src
       ? '<img class="plant-card-img" src="' + src + '" alt="' + p.name + '" loading="lazy" onerror="this.outerHTML=\'<div class=plant-card-no-img>🪴</div>\'" />'
       : '<div class="plant-card-no-img">🪴</div>';
@@ -170,8 +174,8 @@ function updateHomeSub() {
   const overdue = plants.filter(p => getStatus(p).key === 'overdue').length;
   const soon    = plants.filter(p => getStatus(p).key === 'soon').length;
   let msg = plants.length + ' plant' + (plants.length !== 1 ? 's' : '');
-  if (overdue) msg += ' · ' + overdue + ' overdue';
-  else if (soon) msg += ' · ' + soon + ' due soon';
+  if (overdue)        msg += ' · ' + overdue + ' overdue';
+  else if (soon)      msg += ' · ' + soon + ' due soon';
   else if (plants.length) msg += ' · all happy 🌿';
   document.getElementById('home-sub').textContent = msg;
 }
@@ -188,7 +192,6 @@ function showDetail(plantId) {
   if (!plant) return;
   const local  = getLocal(plantId);
   const status = getStatus(plant);
-
   const photos = local.photos || [];
   const latest = photos.length ? photos[photos.length - 1] : null;
   const latestSrc = latest ? photoSrc(latest) : null;
@@ -202,7 +205,6 @@ function showDetail(plantId) {
     : 'Never recorded';
   const waterIcon = { overdue:'🚨', soon:'💧', ok:'✅' }[status.key] || '💧';
 
-  // Timeline newest first
   const reversed = photos.slice().reverse();
   const timelineHtml = reversed.length
     ? '<div class="section-heading">Growth timeline</div><div class="timeline">' +
@@ -232,25 +234,21 @@ function showDetail(plantId) {
         '</div></div>' +
       (plant.notes ? '<p class="detail-notes">' + plant.notes + '</p>' : '') +
       timelineHtml +
-      // ── Photo add panel ──────────────────────────────────────
       '<div class="add-photo-panel">' +
         '<div class="section-heading" style="margin-bottom:.75rem">Add a photo</div>' +
         '<div class="add-photo-options">' +
-          // Option A: upload
           '<label class="add-photo-opt" title="Upload from your phone">' +
             '<input type="file" accept="image/*" style="display:none" onchange="handleUploadPhoto(this,\'' + plantId + '\')" />' +
             '<span class="add-photo-icon">📱</span>' +
             '<span class="add-photo-label">Upload photo</span>' +
-            '<span class="add-photo-sub">Stored locally</span>' +
+            '<span class="add-photo-sub">Stored on this device</span>' +
           '</label>' +
-          // Option B: Drive link
-          '<button class="add-photo-opt" onclick="showDriveLinkInput(\'' + plantId + '\')" title="Paste a Google Drive link">' +
+          '<button class="add-photo-opt" onclick="showDriveLinkInput(\'' + plantId + '\')">' +
             '<span class="add-photo-icon">☁️</span>' +
             '<span class="add-photo-label">Drive link</span>' +
             '<span class="add-photo-sub">Syncs everywhere</span>' +
           '</button>' +
         '</div>' +
-        // Drive link input (hidden by default)
         '<div class="drive-link-row hidden" id="drive-link-row-' + plantId + '">' +
           '<input type="url" id="drive-link-input-' + plantId + '" placeholder="Paste Google Drive share link…" style="flex:1" />' +
           '<button class="drive-link-save" onclick="saveDriveLink(\'' + plantId + '\')">Save</button>' +
@@ -264,47 +262,40 @@ function showDetail(plantId) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// ── photo: upload from device ──────────────────────────────────
+// ── photo: upload ──────────────────────────────────────────────
 async function handleUploadPhoto(input, plantId) {
-  const file = input.files[0];
-  if (!file) return;
+  const file = input.files[0]; if (!file) return;
   const dataUrl    = await readFile(file);
   const compressed = await compressImage(dataUrl, 800);
   if (!localData[plantId]) localData[plantId] = { lastWatered: null, photos: [] };
-  localData[plantId].photos.push({
-    date: new Date().toISOString(), dataUrl: compressed, label: 'Growth photo',
-  });
-  await saveLocalData();
+  localData[plantId].photos.push({ date: new Date().toISOString(), dataUrl: compressed, label: 'Growth photo' });
+  saveLocalData();
   showToast('Photo saved locally 📱');
   showDetail(plantId);
 }
 
-// ── photo: Google Drive link ───────────────────────────────────
+// ── photo: Drive link ──────────────────────────────────────────
 function showDriveLinkInput(plantId) {
   const row = document.getElementById('drive-link-row-' + plantId);
   if (row) { row.classList.toggle('hidden'); document.getElementById('drive-link-input-' + plantId).focus(); }
 }
 
-async function saveDriveLink(plantId) {
+function saveDriveLink(plantId) {
   const input = document.getElementById('drive-link-input-' + plantId);
   const raw   = (input.value || '').trim();
   if (!raw) { showToast('Please paste a Drive link first'); return; }
-  const resolved = driveUrl(raw);
-  if (!resolved) { showToast('Could not recognise that link'); return; }
   if (!localData[plantId]) localData[plantId] = { lastWatered: null, photos: [] };
-  localData[plantId].photos.push({
-    date: new Date().toISOString(), driveUrl: raw, label: 'Growth photo',
-  });
-  await saveLocalData();
+  localData[plantId].photos.push({ date: new Date().toISOString(), driveUrl: raw, label: 'Growth photo' });
+  saveLocalData();
   showToast('Drive photo linked ☁️');
   showDetail(plantId);
 }
 
 // ── water plant ────────────────────────────────────────────────
-async function waterPlant(plantId) {
+function waterPlant(plantId) {
   if (!localData[plantId]) localData[plantId] = { lastWatered: null, photos: [] };
   localData[plantId].lastWatered = new Date().toISOString();
-  await saveLocalData();
+  saveLocalData();
   showToast('Watered! 💧');
   showDetail(plantId);
   updateHomeSub();
@@ -324,8 +315,7 @@ function showAddPlant() {
 }
 
 function showEditPlant(plantId) {
-  const plant = plants.find(p => p.id === plantId);
-  if (!plant) return;
+  const plant = plants.find(p => p.id === plantId); if (!plant) return;
   editingPlantId = plantId; pendingFormPhoto = null;
   document.getElementById('form-title').textContent = 'Edit plant';
   document.getElementById('field-name').value      = plant.name;
@@ -362,7 +352,7 @@ function handleFormPhoto(input) {
   reader.readAsDataURL(file);
 }
 
-async function savePlant() {
+function savePlant() {
   const name = document.getElementById('field-name').value.trim();
   const freq = parseInt(document.getElementById('field-frequency').value, 10);
   if (!name) { showToast('Please enter a plant name'); return; }
@@ -382,28 +372,28 @@ async function savePlant() {
       if (!localData[editingPlantId]) localData[editingPlantId] = { lastWatered: null, photos: [] };
       localData[editingPlantId].photos.push({ date: new Date().toISOString(), dataUrl: pendingFormPhoto, label: 'Updated photo' });
     }
-    const lps = getLocalPlants(); const lp = lps.find(p => p.id === editingPlantId);
-    if (lp) { lp.name = name; lp.location = location; lp.frequency = freq; lp.notes = notes; await saveLocalPlants(lps); }
+    const lps = getLocalPlants();
+    const lp  = lps.find(p => p.id === editingPlantId);
+    if (lp) { lp.name = name; lp.location = location; lp.frequency = freq; lp.notes = notes; saveLocalPlants(lps); }
   } else {
     const newId = 'local_' + Date.now();
     const newPlant = { id: newId, name, location, frequency: freq, notes, fromSheet: false };
     plants.push(newPlant);
     localData[newId] = { lastWatered: lastW || null, photos: [] };
     if (pendingFormPhoto) localData[newId].photos.push({ date: new Date().toISOString(), dataUrl: pendingFormPhoto, label: 'First photo' });
-    const lps = getLocalPlants(); lps.push(newPlant);
-    await saveLocalPlants(lps);
+    const lps = getLocalPlants(); lps.push(newPlant); saveLocalPlants(lps);
   }
-  await saveLocalData();
+  saveLocalData();
   showToast(editingPlantId ? 'Plant updated 🌿' : 'Plant added 🌱');
   goHome();
 }
 
-async function deletePlant() {
+function deletePlant() {
   if (!editingPlantId || !confirm('Delete this plant? This cannot be undone.')) return;
   plants = plants.filter(p => p.id !== editingPlantId);
   delete localData[editingPlantId];
-  await saveLocalPlants(getLocalPlants().filter(p => p.id !== editingPlantId));
-  await saveLocalData();
+  saveLocalPlants(getLocalPlants().filter(p => p.id !== editingPlantId));
+  saveLocalData();
   showToast('Plant removed');
   goHome();
 }
