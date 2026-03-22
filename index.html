@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>My Plants</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#f0f4ee" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="My Plants" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,500;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div id="loading-screen">
+    <div class="loading-inner">
+      <div class="loading-icon">🌿</div>
+      <div class="loading-title">My Plants</div>
+      <div class="loading-sub">Checking in on your garden…</div>
+    </div>
+  </div>
+
+  <div id="app" class="hidden">
+
+    <!-- HOME: plant grid -->
+    <div id="screen-home" class="screen">
+      <header class="home-header">
+        <div class="header-top">
+          <div>
+            <div class="home-title">My Plants</div>
+            <div class="home-sub" id="home-sub">Loading…</div>
+          </div>
+          <button class="add-btn" onclick="showAddPlant()">+ Add</button>
+        </div>
+        <!-- Status filter pills -->
+        <div class="filter-row">
+          <button class="filter-pill active" data-filter="all"    onclick="setFilter('all')">All</button>
+          <button class="filter-pill"         data-filter="overdue" onclick="setFilter('overdue')">🔴 Overdue</button>
+          <button class="filter-pill"         data-filter="soon"    onclick="setFilter('soon')">🟡 Due soon</button>
+          <button class="filter-pill"         data-filter="ok"      onclick="setFilter('ok')">🟢 Happy</button>
+        </div>
+      </header>
+      <div class="plant-grid" id="plant-grid"></div>
+      <div class="empty-state hidden" id="empty-state">
+        <div class="empty-icon">🪴</div>
+        <div class="empty-text">No plants yet</div>
+        <div class="empty-sub">Tap + Add to get started</div>
+      </div>
+    </div>
+
+    <!-- PLANT DETAIL -->
+    <div id="screen-detail" class="screen hidden">
+      <div class="topbar">
+        <button class="back-btn" onclick="goHome()">← Back</button>
+        <button class="water-btn" id="water-btn" onclick="waterPlant()">💧 Water now</button>
+      </div>
+      <div id="detail-content"></div>
+    </div>
+
+    <!-- ADD / EDIT PLANT -->
+    <div id="screen-form" class="screen hidden">
+      <div class="topbar">
+        <button class="back-btn" onclick="goHome()">← Cancel</button>
+        <div class="topbar-title" id="form-title">Add plant</div>
+      </div>
+      <div class="form-body">
+
+        <div class="form-photo-zone" id="form-photo-zone" onclick="document.getElementById('form-photo-input').click()">
+          <input type="file" id="form-photo-input" accept="image/*" onchange="handleFormPhoto(this)" />
+          <img id="form-photo-preview" class="form-photo-preview hidden" />
+          <div id="form-photo-placeholder">
+            <div style="font-size:32px">📷</div>
+            <div class="form-photo-hint">Tap to add a photo</div>
+          </div>
+        </div>
+
+        <div class="form-fields">
+          <div class="field-group">
+            <label class="field-label">Plant name *</label>
+            <input type="text" id="field-name" placeholder="e.g. Monstera, Basil, Peace Lily" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Location</label>
+            <input type="text" id="field-location" placeholder="e.g. Kitchen windowsill, Living room" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Water every (days) *</label>
+            <input type="number" id="field-frequency" min="1" max="90" placeholder="7" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Last watered</label>
+            <input type="date" id="field-last-watered" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Notes</label>
+            <textarea id="field-notes" placeholder="Care tips, soil type, sunlight needs…" rows="3"></textarea>
+          </div>
+        </div>
+
+        <button class="save-btn" onclick="savePlant()">Save plant</button>
+        <button class="delete-btn hidden" id="delete-btn" onclick="deletePlant()">Delete plant</button>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="toast hidden" id="toast"></div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .catch(e => console.warn('SW:', e));
+      });
+    }
+  </script>
+</body>
+</html>
