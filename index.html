@@ -26,7 +26,7 @@
 
   <div id="app" class="hidden">
 
-    <!-- HOME: plant grid -->
+    <!-- HOME -->
     <div id="screen-home" class="screen">
       <header class="home-header">
         <div class="header-top">
@@ -34,34 +34,36 @@
             <div class="home-title">My Plants</div>
             <div class="home-sub" id="home-sub">Loading…</div>
           </div>
-          <button class="add-btn" onclick="showAddPlant()">+ Add</button>
+          <div class="header-actions">
+            <button class="icon-btn" onclick="loadSheet()" title="Refresh">↻</button>
+            <button class="add-btn" onclick="showAddPlant()">+ Add</button>
+          </div>
         </div>
-        <!-- Status filter pills -->
         <div class="filter-row">
-          <button class="filter-pill active" data-filter="all"    onclick="setFilter('all')">All</button>
-          <button class="filter-pill"         data-filter="overdue" onclick="setFilter('overdue')">🔴 Overdue</button>
-          <button class="filter-pill"         data-filter="soon"    onclick="setFilter('soon')">🟡 Due soon</button>
-          <button class="filter-pill"         data-filter="ok"      onclick="setFilter('ok')">🟢 Happy</button>
+          <button class="filter-pill active" data-filter="all"     onclick="setFilter('all')">All</button>
+          <button class="filter-pill"        data-filter="overdue" onclick="setFilter('overdue')">🔴 Overdue</button>
+          <button class="filter-pill"        data-filter="soon"    onclick="setFilter('soon')">🟡 Due soon</button>
+          <button class="filter-pill"        data-filter="ok"      onclick="setFilter('ok')">🟢 Happy</button>
         </div>
       </header>
       <div class="plant-grid" id="plant-grid"></div>
       <div class="empty-state hidden" id="empty-state">
         <div class="empty-icon">🪴</div>
         <div class="empty-text">No plants yet</div>
-        <div class="empty-sub">Tap + Add to get started</div>
+        <div class="empty-sub">Add plants to your Google Sheet or tap + Add</div>
       </div>
     </div>
 
-    <!-- PLANT DETAIL -->
+    <!-- DETAIL -->
     <div id="screen-detail" class="screen hidden">
       <div class="topbar">
         <button class="back-btn" onclick="goHome()">← Back</button>
-        <button class="water-btn" id="water-btn" onclick="waterPlant()">💧 Water now</button>
+        <button class="water-btn" id="water-btn">💧 Water now</button>
       </div>
       <div id="detail-content"></div>
     </div>
 
-    <!-- ADD / EDIT PLANT -->
+    <!-- ADD / EDIT FORM -->
     <div id="screen-form" class="screen hidden">
       <div class="topbar">
         <button class="back-btn" onclick="goHome()">← Cancel</button>
@@ -69,12 +71,12 @@
       </div>
       <div class="form-body">
 
-        <div class="form-photo-zone" id="form-photo-zone" onclick="document.getElementById('form-photo-input').click()">
-          <input type="file" id="form-photo-input" accept="image/*" onchange="handleFormPhoto(this)" />
+        <!-- Photo preview / Drive URL -->
+        <div class="form-photo-zone" id="form-photo-zone">
           <img id="form-photo-preview" class="form-photo-preview hidden" />
           <div id="form-photo-placeholder">
-            <div style="font-size:32px">📷</div>
-            <div class="form-photo-hint">Tap to add a photo</div>
+            <div style="font-size:32px">🌿</div>
+            <div class="form-photo-hint">Photo will appear here</div>
           </div>
         </div>
 
@@ -92,17 +94,35 @@
             <input type="number" id="field-frequency" min="1" max="90" placeholder="7" />
           </div>
           <div class="field-group">
-            <label class="field-label">Last watered</label>
+            <label class="field-label">Last watered (YYYY-MM-DD)</label>
             <input type="date" id="field-last-watered" />
           </div>
           <div class="field-group">
+            <label class="field-label">Google Drive photo link</label>
+            <input type="url" id="field-photo-url" placeholder="Paste Drive share link…" oninput="handlePhotoUrlInput(this)" />
+          </div>
+          <div class="field-group">
             <label class="field-label">Notes</label>
-            <textarea id="field-notes" placeholder="Care tips, soil type, sunlight needs…" rows="3"></textarea>
+            <textarea id="field-notes" placeholder="Care tips, sunlight, soil…" rows="3"></textarea>
           </div>
         </div>
 
+        <div class="form-sheet-note hidden" id="form-sheet-note">
+          <strong>Remember:</strong> After saving here, also update the row in your Google Sheet so changes sync for everyone.
+        </div>
+
         <button class="save-btn" onclick="savePlant()">Save plant</button>
-        <button class="delete-btn hidden" id="delete-btn" onclick="deletePlant()">Delete plant</button>
+        <button class="delete-btn hidden" id="delete-btn" onclick="deletePlant()">Remove plant</button>
+      </div>
+    </div>
+
+    <!-- ERROR -->
+    <div id="screen-error" class="screen hidden">
+      <div class="error-box">
+        <div class="error-icon">⚠️</div>
+        <div class="error-title">Couldn't load plants</div>
+        <div class="error-msg" id="error-msg"></div>
+        <button class="btn-primary" onclick="loadSheet()" style="margin-top:1.5rem;">Try again</button>
       </div>
     </div>
 
@@ -114,10 +134,7 @@
   <script src="app.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js')
-          .catch(e => console.warn('SW:', e));
-      });
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
     }
   </script>
 </body>
